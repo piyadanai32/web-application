@@ -19,12 +19,17 @@ function UploadImage() {
     formData.append("image", selectedFile);
 
     try {
-      const response = await fetch("https://abcd1234.ngrok.io/predict", {
+      const response = await fetch("http://127.0.0.1:5000/predict", {  // ใช้ URL ของเซิร์ฟเวอร์ที่ถูกต้อง
         method: "POST",
         body: formData,
       });
-      const data = await response.json();
-      setResult(data.result);
+
+      if (response.ok) {
+        const data = await response.json();
+        setResult(data.result);  // กำหนดผลลัพธ์ที่ได้จากเซิร์ฟเวอร์
+      } else {
+        console.error("Error from server:", response.statusText);
+      }
     } catch (error) {
       console.error("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ:", error);
     }
