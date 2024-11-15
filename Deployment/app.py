@@ -8,12 +8,11 @@ from PIL import Image
 
 # สร้างแอป Flask
 app = Flask(__name__)
-CORS(app)  # เปิดใช้งาน CORS เพื่อให้ React สามารถเรียก API ได้จากโดเมนอื่น
+CORS(app)
 
 # โหลดโมเดล
 model = load_model('./Models/test_DenseNet.keras')
 
-# API สำหรับรับไฟล์ภาพและทำการทำนาย
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'image' not in request.files:
@@ -25,29 +24,27 @@ def predict():
     try:
         # อ่านไฟล์ภาพ
         img = Image.open(io.BytesIO(file.read()))
-        img = img.resize((224, 224))  # เปลี่ยนขนาดภาพให้ตรงกับ input ของโมเดล
-        img_array = np.array(img)  # แปลงภาพเป็น numpy array
+        img = img.resize((224, 224))
+        img = img.convert("RGB")
 
-        # ทำให้แน่ใจว่าภาพมี 3 channel (RGB)
-        if img_array.shape[-1] == 4:
-            img_array = img_array[..., :3]
-
-        img_array = np.expand_dims(img_array, axis=0)  # เพิ่มมิติ batch
+        # แปลงภาพเป็น numpy array และ Normalize ค่า
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
 
         # ทำนายผลลัพธ์
         predictions = model.predict(img_array)
 
-        # แสดงค่าผลลัพธ์ทั้งหมด
-        print(predictions)  # หรือพิมพ์ดูค่าผลลัพธ์เพื่อดูว่าโมเดลทำนายค่าของแต่ละคลาสได้เท่าไหร่
+        # แสดงผลลัพธ์การทำนายเพื่อการดีบัก
+        print("Raw predictions:", predictions)
 
-        # เลือกคลาสที่มีค่ามากที่สุด
-        predicted_class = np.argmax(predictions, axis=1)
-
-        # ส่งผลลัพธ์กลับ
-        class_names = ['Cassava','SugarCane']
-        result = class_names[predicted_class[0]]
-
-        return jsonify({'result': result, 'predictions': predictions.tolist()})
+        # ตรวจสอบค่า softmax ของ predictions
+        if predictions.shape[1] == 2:  # หากเป็นการจำแนกแบบ 2 คลาส
+            class_names = ['Cassava', 'SugarCane']
+            predicted_class = np.argmax(predictions, axis=1)
+            result = class_names[predicted_class[0]]
+            return jsonify({'result': result, 'predictions': predictions.tolist()})
+        else:
+            return jsonify({'error': 'Unexpected output shape from model'}), 500
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
