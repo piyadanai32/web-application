@@ -2,73 +2,139 @@ import React, { useState } from "react";
 
 function UploadImage() {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [result, setResult] = useState("");
-  const [showPopup, setShowPopup] = useState(false); // สถานะสำหรับป๊อปอัปแจ้งเตือน
+  const [percentages, setPercentages] = useState({});
+  const [showPopup, setShowPopup] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleFileChange = (event) => {
-    setSelectedFile(event.target.files[0]);
+    const file = event.target.files[0];
+    setSelectedFile(file);
+
+    // สร้าง URL สำหรับแสดงภาพที่เลือก
+    if (file) {
+      const previewUrl = URL.createObjectURL(file);
+      setPreview(previewUrl);
+    } else {
+      setPreview(null);
+    }
   };
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setShowPopup(true); // แสดงป๊อปอัปถ้าไม่มีการเลือกไฟล์
+      setShowPopup(true);
       return;
     }
+
+    setIsLoading(true);
 
     const formData = new FormData();
     formData.append("image", selectedFile);
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/predict", {  // ใช้ URL ของเซิร์ฟเวอร์ที่ถูกต้อง
+      const response = await fetch("http://127.0.0.1:5000/predict", {
         method: "POST",
         body: formData,
       });
 
       if (response.ok) {
         const data = await response.json();
-        setResult(data.result);  // กำหนดผลลัพธ์ที่ได้จากเซิร์ฟเวอร์
+        setResult(data.result);
+        setPercentages(data.percentages);
       } else {
         console.error("Error from server:", response.statusText);
       }
     } catch (error) {
       console.error("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ:", error);
+    } finally {
+      setIsLoading(false);
+      setShowPopup(true);
     }
   };
 
+  const refreshPage = () => {
+    window.location.reload();
+  };
+
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800 tracking-wide">
-        อัปโหลดไฟล์ภาพถ่าย Sentinel-2 ของอ้อยและมันสำปะหลัง
-      </h1>
-      <input
-        type="file"
-        onChange={handleFileChange}
-        className="mb-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white cursor-pointer focus:outline-none"
-      />
-      <button
-        onClick={handleUpload}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-400 mb-4 shadow-md"
-      >
-        อัปโหลดและจำแนก
-      </button>
-      {result && (
-        <p className="text-lg text-green-700 font-semibold mt-4">
-          ผลการจำแนก: {result}
+    <div className="min-h-screen bg-gradient-to-r from-blue-50 to-blue-100 flex flex-col items-center justify-center px-4">
+      <div className="bg-white shadow-lg rounded-lg p-8 max-w-lg w-full text-center">
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">
+          อัปโหลดภาพเพื่อจำแนก
+        </h1>
+        <p className="text-gray-600 mb-6">
+          กรุณาเลือกรูปภาพ Sentinel-2 เพื่อตรวจสอบว่าคือ "อ้อย" หรือ "มันสำปะหลัง"
         </p>
-      )}
-      
-      {/* ป๊อปอัปแจ้งเตือนแบบเต็มจอ */}
+        <div className="mb-4">
+          <input
+            type="file"
+            id="fileInput"
+            onChange={handleFileChange}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white cursor-pointer focus:outline-none"
+          />
+        </div>
+
+        {preview && (
+          <div className="mb-4">
+            <p className="text-gray-600 mb-2">ภาพที่คุณเลือก:</p>
+            <img
+              src={preview}
+              alt="Preview"
+              className="w-64 h-64 object-contain border border-gray-300 rounded-lg"
+            />
+          </div>
+        )}
+
+        <button
+          onClick={handleUpload}
+          className={`w-full ${
+            isLoading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+          } text-white font-semibold py-2 px-4 rounded-lg shadow transition focus:outline-none focus:ring-2 focus:ring-blue-400 mb-6`}
+          disabled={isLoading}
+        >
+          {isLoading ? "กำลังประมวลผล..." : "อัปโหลดและจำแนก"}
+        </button>
+      </div>
+
       {showPopup && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-xs text-center">
-            <p className="text-gray-800 text-lg font-semibold mb-4">
-              กรุณาเลือกรูปภาพก่อนอัปโหลด!
-            </p>
+            {result ? (
+              <>
+                <p className="text-gray-800 text-lg font-semibold mb-4">
+                  ผลการจำแนก: <span className="text-green-600">{result}</span>
+                </p>
+                <p className="text-sm text-gray-700 mb-4">
+                  <strong>ความน่าจะเป็น:</strong>
+                  <span className="block mt-1">
+                    <strong>อ้อย:</strong> {percentages["SugarCane"] || "-"}
+                  </span>
+                  <span>
+                    <strong>มันสำปะหลัง:</strong> {percentages["Cassava"] || "-"}
+                  </span>
+                </p>
+                {preview && (
+                  <div className="mb-4">
+                    <p className="text-gray-600 mb-2">ภาพที่คุณอัปโหลด:</p>
+                    <img
+                      src={preview}
+                      alt="Uploaded Preview"
+                      className="w-64 h-64 object-contain border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-800 text-lg font-semibold mb-4">
+                กรุณาเลือกรูปภาพก่อนอัปโหลด!
+              </p>
+            )}
             <button
-              onClick={() => setShowPopup(false)}
+              onClick={refreshPage}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none"
             >
-              OK
+              ตกลง
             </button>
           </div>
         </div>
